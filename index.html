@@ -529,6 +529,65 @@
 
     .empty span { display: block; font-size: 28px; margin-bottom: 10px; }
 
+    /* ── DNI WRAP ── */
+    .dni-wrap {
+      display: none;
+      margin-top: 20px;
+      padding: 18px;
+      background: rgba(232,160,32,0.06);
+      border: 1px solid rgba(232,160,32,0.25);
+      border-radius: var(--r);
+      animation: slideDown 0.25s ease;
+    }
+
+    .dni-wrap.visible { display: block; }
+
+    .dni-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .dni-icon {
+      font-size: 22px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .dni-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .dni-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .dni-wrap input[type="password"] {
+      width: 100%;
+      background: var(--bg);
+      border: 1.5px solid rgba(232,160,32,0.35);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: 0.3em;
+      padding: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      text-align: center;
+      -webkit-appearance: none;
+    }
+
+    .dni-wrap input[type="password"]:focus {
+      border-color: var(--accent);
+    }
+
     footer {
       margin-top: 40px;
       font-size: 11px;
@@ -556,7 +615,21 @@
     <div class="input-row">
       <input type="text" id="legajo" placeholder="Ej: 10646"
              maxlength="10" autocomplete="off" inputmode="numeric" />
-      <button class="btn" id="btnIngresar" onclick="validarLegajo()">Ingesar</button>
+      <button class="btn" id="btnIngresar" onclick="validarLegajo()">Ingresar</button>
+    </div>
+
+    <!-- Paso 1.5: DNI (aparece tras validar legajo) -->
+    <div class="dni-wrap" id="dniWrap">
+      <div class="dni-header">
+        <div class="dni-icon">🔒</div>
+        <div>
+          <div class="dni-title">Verificación de identidad</div>
+          <div class="dni-sub">Ingresá tu DNI para continuar</div>
+        </div>
+      </div>
+      <input type="password" id="dni" placeholder="••••••••"
+             maxlength="12" autocomplete="off" inputmode="numeric" />
+      <button class="btn btn-block" id="btnDni" onclick="validarDni()">Verificar</button>
     </div>
 
     <!-- Período -->
@@ -566,7 +639,7 @@
       <div class="sel-grid">
         <select id="selMes"></select>
         <select id="selQuincena">
-          <option value="1ra Quincena">1 Quincenas</option>
+          <option value="1ra Quincena">1 Quincena</option>
           <option value="2da Quincena">2 Quincena</option>
         </select>
       </div>
@@ -603,7 +676,7 @@
 
   <script>
     // ── REEMPLAZÁ CON TU URL ──
-    const API_URL = "https://script.google.com/macros/s/AKfycbxD_KTNP7jEexJTLaPMpIGCI4p6b7wMlGpRwRHu2XbkLdbABGPzX7z-LXZ7pSGHS5yy/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbzCNHmj-KHO86KFGLffN7_dKwHY_cT0BEPdDYI2s3xkcdiV_o1CmzWdn_9z0I8azEho/exec";
 
     const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
                    "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
@@ -624,23 +697,57 @@
         new Date().getDate() <= 15 ? "1ra Quincena" : "2da Quincena";
     })();
 
-    // PASO 1 — Validar legajo
+    // PASO 1 — Validar que el legajo existe
     async function validarLegajo() {
       const legajo = document.getElementById("legajo").value.trim();
       clearError();
       hide("resultado");
+      document.getElementById("dniWrap").classList.remove("visible");
       document.getElementById("periodoWrap").classList.remove("visible");
       if (!legajo) { showError("Ingresá tu número de legajo."); return; }
 
       loading(true);
       try {
-        const res  = await fetch(`${API_URL}?legajo=${encodeURIComponent(legajo)}&validar=1`, {redirect: 'follow'});
+        const res  = await fetch(`${API_URL}?legajo=${encodeURIComponent(legajo)}&soloLegajo=1`, {redirect: 'follow'});
         const data = await res.json();
         if (data.error) { showError("Legajo no encontrado. Verificá el número."); return; }
-        document.getElementById("periodoWrap").classList.add("visible");
+        // Legajo OK → pedir DNI
+        document.getElementById("dniWrap").classList.add("visible");
+        setTimeout(() => document.getElementById("dni").focus(), 100);
       } catch(e) {
         showError("Error de conexión. Intentá de nuevo.");
       } finally { loading(false); }
+    }
+
+    // PASO 1.5 — Validar DNI
+    async function validarDni() {
+      const legajo = document.getElementById("legajo").value.trim();
+      const dni    = document.getElementById("dni").value.trim();
+      clearError();
+      hide("resultado");
+      document.getElementById("periodoWrap").classList.remove("visible");
+      if (!dni) { showError("Ingresá tu DNI."); return; }
+
+      document.getElementById("btnDni").disabled = true;
+      document.getElementById("spinner").style.display = "block";
+      try {
+        const res  = await fetch(`${API_URL}?legajo=${encodeURIComponent(legajo)}&dni=${encodeURIComponent(dni)}&validar=1`, {redirect: 'follow'});
+        const data = await res.json();
+        if (data.error) {
+          if (data.error === "DNI incorrecto") {
+            showError("DNI incorrecto. Verificá el número ingresado.");
+          } else {
+            showError(data.error);
+          }
+          return;
+        }
+        document.getElementById("periodoWrap").classList.add("visible");
+      } catch(e) {
+        showError("Error de conexión. Intentá de nuevo.");
+      } finally {
+        document.getElementById("btnDni").disabled = false;
+        document.getElementById("spinner").style.display = "none";
+      }
     }
 
     // PASO 2 — Consultar horas
@@ -750,6 +857,9 @@
 
     document.getElementById("legajo").addEventListener("keydown", e => {
       if (e.key === "Enter") validarLegajo();
+    });
+    document.getElementById("dni").addEventListener("keydown", e => {
+      if (e.key === "Enter") validarDni();
     });
   </script>
 </body>
