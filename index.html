@@ -281,18 +281,13 @@
     }
 
     /* ── TOTALES ── */
-    .totales {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 14px;
-    }
-
-    .tot-card {
+    .total-unico {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: var(--r);
-      padding: 16px;
+      padding: 20px;
+      margin-bottom: 14px;
+      text-align: center;
     }
 
     .tot-lbl {
@@ -301,23 +296,21 @@
       letter-spacing: 0.12em;
       text-transform: uppercase;
       color: var(--muted);
-      margin-bottom: 6px;
+      margin-bottom: 8px;
     }
 
     .tot-val {
       font-family: 'Syne', sans-serif;
-      font-size: 36px;
+      font-size: 52px;
       font-weight: 800;
       line-height: 1;
+      color: var(--accent);
     }
-
-    .tot-card.norm .tot-val { color: var(--accent); }
-    .tot-card.ext  .tot-val { color: var(--accent); }
 
     .tot-unit {
       font-size: 11px;
       color: var(--muted);
-      margin-top: 4px;
+      margin-top: 6px;
     }
 
     /* ── SECCIÓN DETALLE ── */
@@ -452,6 +445,37 @@
       gap: 8px;
     }
 
+    .hs-total-dia {
+      background: rgba(232,160,32,0.07);
+      border: 1px solid rgba(232,160,32,0.2);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+    }
+
+    .hs-total-dia .hs-blk-lbl {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .hs-total-dia .hs-blk-val {
+      font-family: 'Syne', sans-serif;
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .hs-total-dia .hs-blk-unit {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+
     .hs-blk {
       border-radius: 10px;
       padding: 12px 14px;
@@ -532,7 +556,7 @@
     <div class="input-row">
       <input type="text" id="legajo" placeholder="Ej: 10646"
              maxlength="10" autocomplete="off" inputmode="numeric" />
-      <button class="btn" id="btnIngresar" onclick="validarLegajo()">Ingresar</button>
+      <button class="btn" id="btnIngresar" onclick="validarLegajo()">OK</button>
     </div>
 
     <!-- Período -->
@@ -542,8 +566,8 @@
       <div class="sel-grid">
         <select id="selMes"></select>
         <select id="selQuincena">
-          <option value="1ra Quincena">1 Quincena</option>
-          <option value="2da Quincena">2 Quincena</option>
+          <option value="1ra Quincena">1ra (1–15)</option>
+          <option value="2da Quincena">2da (16–31)</option>
         </select>
       </div>
       <button class="btn btn-block" onclick="consultar()">Ver mis horas</button>
@@ -564,17 +588,10 @@
       <div class="badge" id="rLegajo"></div>
     </div>
 
-    <div class="totales">
-      <div class="tot-card norm">
-        <div class="tot-lbl">Normales</div>
-        <div class="tot-val" id="rNorm">—</div>
-        <div class="tot-unit">horas</div>
-      </div>
-      <div class="tot-card ext">
-        <div class="tot-lbl">Extra</div>
-        <div class="tot-val" id="rExt">—</div>
-        <div class="tot-unit">horas</div>
-      </div>
+    <div class="total-unico">
+      <div class="tot-lbl">Total de horas trabajadas</div>
+      <div class="tot-val" id="rTotal">—</div>
+      <div class="tot-unit">horas en la quincena</div>
     </div>
 
     <div class="sec-title">Detalle por día</div>
@@ -617,7 +634,7 @@
 
       loading(true);
       try {
-        const res  = await fetch(`${API_URL}?legajo=${encodeURIComponent(legajo)}&validar=1`);
+        const res  = await fetch(`${API_URL}?legajo=${encodeURIComponent(legajo)}&validar=1`, {redirect: 'follow'});
         const data = await res.json();
         if (data.error) { showError("Legajo no encontrado. Verificá el número."); return; }
         document.getElementById("periodoWrap").classList.add("visible");
@@ -639,7 +656,7 @@
 
       try {
         const url  = `${API_URL}?legajo=${encodeURIComponent(legajo)}&anio=${anio}&mes=${mes}&quincena=${encodeURIComponent(quincena)}`;
-        const res  = await fetch(url);
+        const res  = await fetch(url, {redirect: 'follow'});
         const data = await res.json();
         if (data.error) { showError(data.error); return; }
         renderResultado(legajo, mesVal, quincena, data);
@@ -656,8 +673,7 @@
       document.getElementById("rNombre").textContent  = data.operario;
       document.getElementById("rPeriodo").textContent = `${quincena} · ${nombreMes} ${anio}`;
       document.getElementById("rLegajo").textContent  = `#${legajo}`;
-      document.getElementById("rNorm").textContent    = fmt(data.totalNormales);
-      document.getElementById("rExt").textContent     = fmt(data.totalExtras);
+      document.getElementById("rTotal").textContent   = fmt(data.totalNormales + data.totalExtras);
 
       const wrap = document.getElementById("tarjetas");
       wrap.innerHTML = "";
@@ -668,10 +684,6 @@
         data.filas.forEach(f => {
           const acts  = [...new Set(f.detalle.map(d => d.actividad))];
           const pills = acts.map(a => `<span class="pill">${a}</span>`).join("");
-
-          const extRow = f.extras > 0
-            ? `<div class="hs-row"><span class="dot dot-e"></span><span class="c-e">${fmt(f.extras)} h extra</span></div>`
-            : "";
 
           const tareasHTML = f.tareas
             ? `<div class="tareas-blk"><strong>Tareas</strong>${f.tareas}</div>`
@@ -686,25 +698,17 @@
                 <div class="dia-pills">${pills}</div>
               </div>
               <div class="dia-right">
-                <div class="hs-row"><span class="dot dot-n"></span><span class="c-n">${fmt(f.normales)} h</span></div>
-                ${extRow}
+                <div class="hs-row"><span class="dot dot-n"></span><span class="c-n">${fmt((f.normales||0)+(f.extras||0))} h</span></div>
               </div>
               <span class="chevron">▼</span>
             </div>
             <div class="dia-body">
               <hr class="div-line" />
               ${tareasHTML}
-              <div class="hs-desglose">
-                <div class="hs-blk norm">
-                  <div class="hs-blk-lbl">Normales</div>
-                  <div class="hs-blk-val">${fmt(f.normales)}</div>
-                  <div class="hs-blk-unit">horas</div>
-                </div>
-                <div class="hs-blk ext">
-                  <div class="hs-blk-lbl">Extra</div>
-                  <div class="hs-blk-val">${f.extras > 0 ? fmt(f.extras) : "—"}</div>
-                  <div class="hs-blk-unit">${f.extras > 0 ? "horas" : ""}</div>
-                </div>
+              <div class="hs-total-dia">
+                <div class="hs-blk-lbl">Total del día</div>
+                <div class="hs-blk-val c-acc">${fmt(f.normales + f.extras)}</div>
+                <div class="hs-blk-unit">horas</div>
               </div>
             </div>
           `;
